@@ -1,0 +1,99 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "dev" ]
+  pull_request:
+    branches: [ "dev" ]
+
+jobs:
+  build-test-scan:
+    runs-on: ubuntu-latest
+    services:
+      zap:  # Service untuk OWASP ZAP (DAST)
+        image: owasp/zap2docker-stable
+        ports:
+          - "8080:8080"
+
+    steps:
+    # ----------------------------------
+    # 1. Setup Environment
+    # ----------------------------------
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest bandit
+
+    # ----------------------------------
+    # 2. Build Stage
+    # ----------------------------------
+    - name: Build
+      run: |
+        echo "Building Flask app..."
+        # Tambahkan perintah build jika diperlukan
+        # Contoh: pyinstaller --onefile app.py (jika perlu dikompilasi)
+
+    # ----------------------------------
+    # 3. Test Stage (Unit Testing)
+    # ----------------------------------
+    - name: Run Unit Tests
+      run: |
+        echo "Running unit tests..."
+        pytest tests/ --cov=app --cov-report=xml
+
+    - name: Upload Coverage Report
+      uses: codecov/codecov-action@v3
+
+    # ----------------------------------
+    # 4. Security Scanning (SAST)
+    # ----------------------------------
+    - name: Run Bandit SAST
+      run: |
+        echo "Running Bandit security scan..."
+        bandit -r app.py -f json -o bandit_results.json || true
+        # '|| true' agar pipeline tidak gagal jika ditemukan vulnerability
+
+    - name: Upload Bandit Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: bandit-report
+        path: bandit_results.json
+
+    # ----------------------------------
+    # 5. DAST Testing (OWASP ZAP)
+    # ----------------------------------
+    - name: Start Flask App for DAST
+      run: |
+        echo "Starting Flask app for DAST testing..."
+        python app.py &
+        sleep 10  # Tunggu aplikasi startup
+
+    - name: Run OWASP ZAP Scan
+      run: |
+        echo "Running ZAP baseline scan..."
+        docker exec zap zap-baseline.py -t http://localhost:5000 -r zap_report.html
+
+    - name: Upload ZAP Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: zap-report
+        path: zap_report.html
+
+    # ----------------------------------
+    # 6. Deployment (Staging)
+    # ----------------------------------
+    - name: Deploy to Staging
+      if: github.ref == 'refs/heads/dev'
+      run: |
+        echo "Deploying to staging environment..."
+        # Contoh deploy ke Heroku (sesuaikan dengan env Anda)
+        git push https://heroku:${{ secrets.HEROKU_API_KEY }}@git.heroku.com/${{ secrets.HEROKU_APP_NAME }}.git dev:main
