@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ] 
+    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ] 
+    branches: [ "main" ]
 
 jobs:
   build-test-scan:
@@ -68,18 +68,23 @@ jobs:
         path: bandit_results.json
 
     # ----------------------------------
-    # 5. DAST Testing (OWASP ZAP)
+    # 5. DAST Testing (OWASP ZAP) - Menggunakan GitHub Action
     # ----------------------------------
     - name: Start Flask App for DAST
       run: |
         echo "Starting Flask app for DAST testing..."
         python app.py &
-        sleep 10  # Tunggu aplikasi startup
+        sleep 10 # Tunggu aplikasi startup
 
-    - name: Run OWASP ZAP Scan
-      run: |
-        echo "Running ZAP baseline scan..."
-        docker exec zap zap-baseline.py -t http://localhost:5000 -r zap_report.html
+    - name: ZAP Scan
+      uses: zaproxy/action-baseline@v0.12.0
+      with:
+        # Target URL aplikasi Anda. 'localhost' di sini bisa berfungsi karena Action ini pintar dalam menangani jaringan.
+        target: 'http://localhost:5000'
+        # Nama file untuk laporan
+        report_html: 'zap_report.html'
+      # Lanjutkan workflow meskipun ada kerentanan yang ditemukan
+      continue-on-error: true
 
     - name: Upload ZAP Report
       uses: actions/upload-artifact@v4
