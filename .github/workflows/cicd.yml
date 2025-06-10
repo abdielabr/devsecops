@@ -2,18 +2,15 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    # ✅ Workflow sekarang berjalan di branch main dan dev
+    branches: [ "main", "dev" ]
   pull_request:
     branches: [ "main" ]
 
 jobs:
   build-test-scan:
     runs-on: ubuntu-latest
-    services:
-      zap:  # Service untuk OWASP ZAP (DAST)
-        image: owasp/zap2docker-stable
-        ports:
-          - "8080:8080"
+    # ❌ Blok 'services' sudah dihapus karena tidak diperlukan lagi
 
     steps:
     # ----------------------------------
@@ -40,7 +37,6 @@ jobs:
       run: |
         echo "Building Flask app..."
         # Tambahkan perintah build jika diperlukan
-        # Contoh: pyinstaller --onefile app.py
 
     # ----------------------------------
     # 3. Test Stage (Unit Testing)
@@ -79,11 +75,8 @@ jobs:
     - name: ZAP Scan
       uses: zaproxy/action-baseline@v0.12.0
       with:
-        # Target URL aplikasi Anda. 'localhost' di sini bisa berfungsi karena Action ini pintar dalam menangani jaringan.
         target: 'http://localhost:5000'
-        # Nama file untuk laporan
         report_html: 'zap_report.html'
-      # Lanjutkan workflow meskipun ada kerentanan yang ditemukan
       continue-on-error: true
 
     - name: Upload ZAP Report
@@ -96,7 +89,9 @@ jobs:
     # 6. Deployment (Staging)
     # ----------------------------------
     - name: Deploy to Staging
+      # ✅ Kondisi ini sekarang akan bekerja dengan benar ketika ada push ke 'dev'
       if: github.ref == 'refs/heads/dev'
       run: |
         echo "Deploying to staging environment..."
+        # Pastikan Anda sudah mengatur secrets di repository GitHub Anda
         git push https://heroku:${{ secrets.HEROKU_API_KEY }}@git.heroku.com/${{ secrets.HEROKU_APP_NAME }}.git dev:main
